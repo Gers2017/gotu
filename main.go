@@ -2,73 +2,41 @@ package main
 
 import (
 	"fmt"
+	"gotu/modules"
+	"log"
 	"os"
-	"strings"
+
+	. "gotu/typedefs"
+
+	. "gotu/utils"
 )
 
-/*
-  - get args
-  - parse args
-  - identify subcommand
-  - populate data structure config
-  - investigate how to pass the structure as a reference (avoid copies)
-  - investigate, sort by -- and - priority in args
-*/
-
-type Command struct {
-	Cmd         string
-	Args        []string
-	Len         int
-	Description string
-	HelpText    string
+func NewCmdModule(cmd, description, helptext string) CmdModule {
+	return CmdModule{Cmd: cmd, Description: description, HelpText: helptext, Actions: make(map[string]Action)}
 }
-
-func NewCommand(_Args []string, _Description, _HelpText string) Command {
-	_Len := len(_Args)
-	_Cmd := _Args[0]
-	_Args = _Args[1:]
-	return Command{_Cmd, _Args, _Len, _Description, _HelpText}
-}
-
 func main() {
-
 	args := os.Args[1:]
-	// Use generics to map args to a lowercase slice
+	gotu := NewCmdModule("gotu", "Manage your gotus", "Gotu core commands: get, help")
 
-	fmt.Printf("%v %d\n", args, len(args))
-	// config :=  Config{ Args: args, Len: len(args) }
+	gotu.AddAction("get", "Get the todos")
 
 	if len(args) < 1 {
+		gotu.PrintHelp()
 		return
 	}
 
-	command := args[0] // maybe parse command func here
+	action := GetArg(args, 0, "")  // get
+	flags := GetArgsRange(args, 1) // [all, --title, --primary]
 
-	switch command {
+	fmt.Println("ACTION:", action, "ARGS:", flags)
+
+	switch action {
 	case "get":
-		getCmd := NewCommand(args, "Get all the configs", "Usage: get all simps")
-		// fmt.Printf("GET Subcommand: %v\n", getCmd)
-		HandleGet(&getCmd)
-	case "set":
-		fmt.Println("SET Subcommand!")
-
-	case "help":
-		fmt.Println("HELP command!")
-
+		if len(flags) < 1 {
+			log.Fatalln("Missing Parameters")
+		}
+		modules.HandleGetCmd(flags, gotu.Actions["get"])
 	default:
-		fmt.Println("Unknown subcommand")
-	}
-
-}
-
-func HandleGet(get *Command) {
-	subcommand := get.Args[0]
-	subcommand = strings.ToLower(subcommand)
-
-	switch subcommand {
-	case "help":
-		fmt.Printf("%s - %s\n", get.Description, get.HelpText)
-	case "all":
-		fmt.Println("Getting all items!")
+		gotu.PrintHelp()
 	}
 }
