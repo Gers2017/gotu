@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"gotu/typedefs"
 	"gotu/utils"
+
+	"github.com/fatih/color"
 )
 
 type Action = typedefs.Action
@@ -24,9 +26,10 @@ func HandleGetCmd(flags []string, action Action) {
 }
 
 func getAllTodos(args []string) {
-	fmt.Println("Get all the todos")
+	blue := color.New(color.FgBlue).Add(color.Bold)
+	blue.Println("Get all the todos")
 	todos := utils.GetTodos("test.tudu")
-	fmt.Println(utils.TodosToText(todos))
+	utils.PrintTodos(todos)
 }
 
 func getPrimaryTodo(args []string) {

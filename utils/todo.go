@@ -20,8 +20,19 @@ type TitleTuple struct {
 func parseTitle(line string) TitleTuple {
 	cut := strings.Index(line, "]")
 	title := line[:cut+1]
-	priority := strings.Count(line[:cut], "!")
+	priority := strings.Count(line[cut+1:], "!")
 	return TitleTuple{title, priority}
+}
+
+func PrintTodos(todos []typedefs.Todo) {
+	if len(todos) == 0 {
+		return
+	}
+
+	for _, todo := range todos {
+		todo.Print()
+	}
+	fmt.Println() // prints extra line
 }
 
 func TodosToText(todos []typedefs.Todo) string {
