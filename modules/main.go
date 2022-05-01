@@ -2,10 +2,11 @@ package modules
 
 import (
 	"fmt"
+	"gotu/typedefs"
 	"gotu/utils"
-
-	. "gotu/typedefs"
 )
+
+type Action = typedefs.Action
 
 func HandleGetCmd(flags []string, action Action) {
 	flag := utils.GetArg(flags, 0, "")
@@ -24,6 +25,8 @@ func HandleGetCmd(flags []string, action Action) {
 
 func getAllTodos(args []string) {
 	fmt.Println("Get all the todos")
+	todos := utils.GetTodos("test.tudu")
+	fmt.Println(utils.TodosToText(todos))
 }
 
 func getPrimaryTodo(args []string) {

@@ -1,6 +1,8 @@
 package utils
 
-import "fmt"
+import (
+	"fmt"
+)
 
 func PrintUnknownAction(action string) {
 	fmt.Printf("Unknown action: \"%s\"\n", action)

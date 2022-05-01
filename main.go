@@ -7,13 +7,9 @@ import (
 	"os"
 
 	. "gotu/typedefs"
-
 	. "gotu/utils"
 )
 
-func NewCmdModule(cmd, description, helptext string) CmdModule {
-	return CmdModule{Cmd: cmd, Description: description, HelpText: helptext, Actions: make(map[string]Action)}
-}
 func main() {
 	args := os.Args[1:]
 	gotu := NewCmdModule("gotu", "Manage your gotus", "Gotu core commands: get, help")
