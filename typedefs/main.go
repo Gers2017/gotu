@@ -44,29 +44,3 @@ func (todo *Todo) ToText() string {
 
 	return fmt.Sprintf("%s %s\n%s\n", todo.Title, bangs, strings.Join(contents, "\n"))
 }
-
-type CmdModule struct {
-	Name        string
-	Description string
-	HelpText    string
-	Actions     map[string]Action
-}
-
-func NewCmdModule(name, description, helptext string) CmdModule {
-	return CmdModule{name, description, helptext, make(map[string]Action)}
-}
-
-type Action struct {
-	Name     string
-	HelpText string
-}
-
-type ActionFunc = func(args []string)
-
-func (cmd *CmdModule) AddAction(k string, helpText string) {
-	cmd.Actions[k] = Action{Name: k, HelpText: helpText}
-}
-
-func (cmd *CmdModule) PrintHelp() {
-	fmt.Printf("[%s]\n  %s\n", cmd.Description, cmd.HelpText)
-}
