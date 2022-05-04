@@ -36,18 +36,32 @@ func NewConfig(_args []string) Config {
 		os.Exit(0)
 	}
 
-	flags := conf.Args[2:]
+	conf.Action = action
+	return conf
+}
+
+func (conf *Config) ParseFlags() {
+	fmt.Println("Parsing flags...")
+	flags := conf.Args[1:]
 
 	for _, f := range flags {
 		if IsFlag(f) {
-			key := parseFlag(f)
-			key = trimWhitespace(key)
-			conf.Flags[key] = true
+			userFlag := parseFlag(f)
+			userFlag = trimWhitespace(userFlag)
+
+			for _, cmd := range conf.CommandMap {
+				hasVariant, flagId := cmd.HasVariant(userFlag)
+				if hasVariant {
+					conf.Flags[flagId] = true
+				}
+			}
+
 		}
 	}
 
-	conf.Action = action
-	return conf
+	for k, v := range conf.Flags {
+		fmt.Println(k, "->", v)
+	}
 }
 
 func (conf *Config) GetArg(index int) (string, error) {
@@ -68,39 +82,61 @@ func (conf *Config) AddCommand(key string, _command Command) {
 }
 
 type Command struct {
-	Name     string
-	Flags    map[string]Flag
-	FlagSet  []string
-	HelpText string
+	Name         string
+	Flags        map[string]Flag
+	FlagVariants map[string][]string
+	HelpText     string
 }
 
 func NewCommand(_name, _help string) Command {
-	return Command{_name, make(map[string]Flag), make([]string, 0), _help}
+	return Command{_name, make(map[string]Flag), make(map[string][]string), _help}
 }
 
-func (cmd *Command) GetVariantsOf(key string) ([]string, error) {
-	f, ok := cmd.Flags[key]
+func (cmd *Command) PrintHelp() {
+	fmt.Println(cmd.HelpText)
+}
+
+func (cmd *Command) GetVariantsOf(flagName string) ([]string, error) {
+	v, ok := cmd.FlagVariants[flagName]
 	if !ok {
-		return make([]string, 0), errors.New(fmt.Sprintf("No such a flag: %s", key))
+		return make([]string, 0), errors.New(fmt.Sprintf("Unknown flag \"%s\" \n", flagName))
+	}
+	return v, nil
+}
+
+func (cmd *Command) HasVariant(val string) (bool, string) {
+	for key, variants := range cmd.FlagVariants {
+		for _, v := range variants {
+			v = trimWhitespace(v)
+			v = parseFlag(v)
+
+			if v == val {
+				return true, key
+			}
+		}
 	}
 
-	return f.Variants, nil
+	return false, ""
 }
 
 func (cmd *Command) AddFlag(f Flag) {
 	cmd.Flags[f.Name] = f
-	cmd.FlagSet = append(cmd.FlagSet, f.Variants...)
+	cmd.FlagVariants[f.Name] = f.Variants
 }
 
 type Flag struct {
 	Name         string
 	Variants     []string
-	DefaultValue string
+	DefaultValue any
 	HelpText     string
 }
 
-func NewFlag(name string, variants string, defaultValue string, helpText string) Flag {
+func NewFlag(name string, variants string, defaultValue any, helpText string) Flag {
 	return Flag{name, strings.Split(variants, " "), defaultValue, helpText}
+}
+
+func (flag *Flag) PrintHelp() {
+	fmt.Println(flag.HelpText)
 }
 
 func PrintUnknown(value string) {
@@ -129,16 +165,8 @@ func MatchesRange(args []string, variants []string) bool {
 	return false
 }
 
-func (conf *Config) HasFlagInVariant(variants []string) bool {
-	for k := range conf.Flags {
-		for _, v := range variants {
-			if parseFlag(v) == k {
-				return true
-			}
-		}
-	}
+func PrintHelpFor(key string) {
 
-	return false
 }
 
 const (
@@ -155,41 +183,43 @@ func main() {
 	// len:  1   2     3      4
 	config := NewConfig(os.Args)
 
-	for k, v := range config.Flags {
-		fmt.Println(k, ":", v)
-	}
+	get := NewCommand("get", GET_ACTION_HELP)
+	get.AddFlag(NewFlag("all", "--all -A --todos", false, GET_ALL_HELP))
+	get.AddFlag(NewFlag("primary", "--primary -P", false, GET_PRIMARY_HELP))
+	get.AddFlag(NewFlag("title", "--title -T", "", GET_TITLE_HELP))
+	get.AddFlag(NewFlag("help", "--help -h", false, GET_ACTION_HELP))
+	config.AddCommand("get", get)
 
-	getCommand := NewCommand("get", GET_ACTION_HELP)
-	getCommand.AddFlag(NewFlag("all", "--all -A --todos", "false", GET_ALL_HELP))
-	getCommand.AddFlag(NewFlag("title", "--title -T", "", GET_TITLE_HELP))
-	getCommand.AddFlag(NewFlag("help", "--help -h", "", GET_ACTION_HELP))
+	config.ParseFlags()
 
-	config.AddCommand("get", getCommand)
-
-	HELP_VARIANTS := []string{"help", "--help", "-h"}
-	isHelp := config.HasFlagInVariant(HELP_VARIANTS)
+	isHelp := config.HasFlag("help")
 
 	// Match value, on fail print error message or help message
 	if config.Action == "get" {
-		if config.HasFlag("all") || config.HasFlag("A") || config.HasFlag("todos") {
+
+		if config.HasFlag("all") {
 			if isHelp {
-				fmt.Println(getCommand.Flags["all"].HelpText)
+				fmt.Println(get.Flags["all"].HelpText)
 				return
 			}
 
 			fmt.Println("Printing all values...")
 
-		} else if config.HasFlag("title") || config.HasFlag("T") {
+		} else if config.HasFlag("primary") {
+
+			fmt.Println("Printing priamry value...")
+
+		} else if config.HasFlag("title") {
 
 			if isHelp {
-				fmt.Println(getCommand.Flags["title"].HelpText)
+				fmt.Println(get.Flags["title"].HelpText)
 				return
 			}
 
-			title, err := config.GetArg(3)
+			title, err := config.GetArg(3) // This doesn't work anymore
 
 			if err != nil {
-				fmt.Println(getCommand.Flags["title"].HelpText)
+				fmt.Println(get.Flags["title"].HelpText)
 				return
 			}
 
@@ -197,10 +227,10 @@ func main() {
 		}
 
 		if isHelp {
-			println(GET_ACTION_HELP)
-			return
+			get.PrintHelp()
 		}
+
 	} else {
-		fmt.Println(GET_ACTION_HELP)
+		get.PrintHelp()
 	}
 }
