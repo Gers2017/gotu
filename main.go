@@ -4,20 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 )
-
-func trimWhitespace(s string) string {
-	return strings.ReplaceAll(s, " ", "")
-}
-
-func parseFlag(f string) string {
-	return strings.ReplaceAll(f, "-", "")
-}
-
-func IsFlag(f string) bool {
-	return strings.HasPrefix(f, "-") && len(f) > 1
-}
 
 type Config struct {
 	Args       []string
@@ -46,8 +35,7 @@ func (conf *Config) ParseFlags() {
 
 	for _, f := range flags {
 		if IsFlag(f) {
-			userFlag := parseFlag(f)
-			userFlag = trimWhitespace(userFlag)
+			userFlag := sanitize(f)
 
 			for _, cmd := range conf.CommandMap {
 				hasVariant, flagId := cmd.HasVariant(userFlag)
@@ -72,6 +60,15 @@ func (conf *Config) GetArg(index int) (string, error) {
 	return args[index], nil
 }
 
+func (conf *Config) IndexOf(arg string) int {
+	for i, v := range conf.Args {
+		if arg == sanitize(v) {
+			return i
+		}
+	}
+	return -1
+}
+
 func (conf *Config) HasFlag(flagKey string) bool {
 	_, exists := conf.Flags[flagKey]
 	return exists
@@ -81,34 +78,41 @@ func (conf *Config) AddCommand(key string, _command Command) {
 	conf.CommandMap[key] = _command
 }
 
+func sanitize(s string) string {
+	s = parseFlag(s)
+	return trimWhitespace(s)
+}
+
+func trimWhitespace(s string) string {
+	return strings.ReplaceAll(s, " ", "")
+}
+
+func parseFlag(f string) string {
+	return strings.ReplaceAll(f, "-", "")
+}
+
+func IsFlag(f string) bool {
+	return strings.HasPrefix(f, "-") && len(f) > 1
+}
+
 type Command struct {
-	Name         string
-	Flags        map[string]Flag
-	FlagVariants map[string][]string
-	HelpText     string
+	Name     string
+	Flags    map[string]Flag
+	HelpText string
 }
 
 func NewCommand(_name, _help string) Command {
-	return Command{_name, make(map[string]Flag), make(map[string][]string), _help}
+	return Command{_name, make(map[string]Flag), _help}
 }
 
 func (cmd *Command) PrintHelp() {
 	fmt.Println(cmd.HelpText)
 }
 
-func (cmd *Command) GetVariantsOf(flagName string) ([]string, error) {
-	v, ok := cmd.FlagVariants[flagName]
-	if !ok {
-		return make([]string, 0), errors.New(fmt.Sprintf("Unknown flag \"%s\" \n", flagName))
-	}
-	return v, nil
-}
-
 func (cmd *Command) HasVariant(val string) (bool, string) {
-	for key, variants := range cmd.FlagVariants {
-		for _, v := range variants {
-			v = trimWhitespace(v)
-			v = parseFlag(v)
+	for key, flag := range cmd.Flags {
+		for _, v := range flag.Variants {
+			v = sanitize(v)
 
 			if v == val {
 				return true, key
@@ -119,20 +123,24 @@ func (cmd *Command) HasVariant(val string) (bool, string) {
 	return false, ""
 }
 
-func (cmd *Command) AddFlag(f Flag) {
+func (cmd *Command) AddFlag(name string, variants string, defaultValue any, helpText string) {
+	f := NewFlag(name, variants, defaultValue, helpText)
 	cmd.Flags[f.Name] = f
-	cmd.FlagVariants[f.Name] = f.Variants
 }
 
 type Flag struct {
 	Name         string
 	Variants     []string
 	DefaultValue any
+	DataType     string
+	IsRequired   bool
 	HelpText     string
 }
 
 func NewFlag(name string, variants string, defaultValue any, helpText string) Flag {
-	return Flag{name, strings.Split(variants, " "), defaultValue, helpText}
+	dataType := fmt.Sprint(reflect.TypeOf(defaultValue))
+	isRequired := dataType != "bool"
+	return Flag{name, strings.Split(variants, " "), defaultValue, dataType, isRequired, helpText}
 }
 
 func (flag *Flag) PrintHelp() {
@@ -141,32 +149,6 @@ func (flag *Flag) PrintHelp() {
 
 func PrintUnknown(value string) {
 	fmt.Printf("Unknown command: \"%s\"\n", value)
-}
-
-func Matches(value string, variants []string) bool {
-	matches := false
-	for _, variant := range variants {
-		if value == variant {
-			return true
-		}
-	}
-	return matches
-}
-
-func MatchesRange(args []string, variants []string) bool {
-	variantStr := strings.Join(variants, " ")
-
-	for _, arg := range args {
-		if strings.Contains(variantStr, arg) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func PrintHelpFor(key string) {
-
 }
 
 const (
@@ -178,23 +160,22 @@ const (
 )
 
 func main() {
-	// ind:  0   1     2      3
-	// 		[todo get --title "clocks"]
-	// len:  1   2     3      4
+	// ind:  0   1     2      3       4
+	// 		[todo get --title <title> --help]
+	// len:  1   2     3      4       5
 	config := NewConfig(os.Args)
 
 	get := NewCommand("get", GET_ACTION_HELP)
-	get.AddFlag(NewFlag("all", "--all -A --todos", false, GET_ALL_HELP))
-	get.AddFlag(NewFlag("primary", "--primary -P", false, GET_PRIMARY_HELP))
-	get.AddFlag(NewFlag("title", "--title -T", "", GET_TITLE_HELP))
-	get.AddFlag(NewFlag("help", "--help -h", false, GET_ACTION_HELP))
+	get.AddFlag("all", "--all -A --todos", false, GET_ALL_HELP)
+	get.AddFlag("primary", "--primary -P", false, GET_PRIMARY_HELP)
+	get.AddFlag("title", "--title -T", "", GET_TITLE_HELP)
+	get.AddFlag("help", "--help -h", false, GET_ACTION_HELP)
 	config.AddCommand("get", get)
 
 	config.ParseFlags()
 
 	isHelp := config.HasFlag("help")
 
-	// Match value, on fail print error message or help message
 	if config.Action == "get" {
 
 		if config.HasFlag("all") {
@@ -203,33 +184,41 @@ func main() {
 				return
 			}
 
-			fmt.Println("Printing all values...")
+			getAllTodos()
 
 		} else if config.HasFlag("primary") {
+			if isHelp {
+				fmt.Println(get.Flags["primary"].HelpText)
+				return
+			}
 
-			fmt.Println("Printing priamry value...")
+			getPrimaryTodo()
 
 		} else if config.HasFlag("title") {
-
 			if isHelp {
 				fmt.Println(get.Flags["title"].HelpText)
 				return
 			}
 
-			title, err := config.GetArg(3) // This doesn't work anymore
+			tIndex := config.IndexOf("title")
+			if tIndex == -1 {
+				fmt.Println(get.Flags["title"].HelpText)
+				return
+			}
+
+			title, err := config.GetArg(tIndex + 1) // Search for the <title> value after the flag
 
 			if err != nil {
 				fmt.Println(get.Flags["title"].HelpText)
 				return
 			}
 
-			fmt.Printf("Printing todos by title: \"%s\"...\n", title)
+			getTodoByTitle(title)
 		}
 
 		if isHelp {
 			get.PrintHelp()
 		}
-
 	} else {
 		get.PrintHelp()
 	}
