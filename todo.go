@@ -16,6 +16,11 @@ type Todo struct {
 	Items    []string
 }
 
+type TitleTuple struct {
+	title    string
+	priority int
+}
+
 func NewTodo(title string, priority int, items []string) Todo {
 	return Todo{title, priority, items}
 }
@@ -38,7 +43,7 @@ func (todo *Todo) Print() {
 	c.Println(strings.Join(contents, "\n"))
 }
 
-func (todo *Todo) ToText() string {
+func (todo *Todo) String() string {
 	bangs := strings.Repeat("!", todo.Priority)
 	contents := make([]string, 0)
 	for _, item := range todo.Items {
@@ -46,22 +51,6 @@ func (todo *Todo) ToText() string {
 	}
 
 	return fmt.Sprintf("%s %s\n%s\n", todo.Title, bangs, strings.Join(contents, "\n"))
-}
-
-func isTodoTitle(line string) bool {
-	return strings.HasPrefix(line, "[") && strings.Contains(line, "]")
-}
-
-type TitleTuple struct {
-	title    string
-	priority int
-}
-
-func parseTitle(line string) TitleTuple {
-	cut := strings.Index(line, "]")
-	title := line[:cut+1]
-	priority := strings.Count(line[cut+1:], "!")
-	return TitleTuple{title, priority}
 }
 
 func PrintTodos(todos []Todo) {
@@ -82,15 +71,15 @@ func TodosToText(todos []Todo) string {
 
 	todosText := make([]string, 0)
 	for _, todo := range todos {
-		todosText = append(todosText, todo.ToText())
+		todosText = append(todosText, todo.String())
 	}
 
 	return strings.Join(todosText, "\n")
 }
 
-func SortTodosByPriorityAsc(todos []Todo) {
+func SortTodosByPriority(todos []Todo) {
 	sort.Slice(todos, func(i, j int) bool {
-		return todos[i].Priority < todos[j].Priority
+		return todos[i].Priority > todos[j].Priority
 	})
 }
 
@@ -132,6 +121,23 @@ func GetTodos(filename string) []Todo {
 		}
 	}
 
-	SortTodosByPriorityAsc(todos)
 	return todos
+}
+
+func clearTitle(t string) string {
+	t = strings.ToLower(t)
+	t = strings.TrimPrefix(t, "[")
+	t = strings.TrimSuffix(t, "]")
+	return t
+}
+
+func isTodoTitle(line string) bool {
+	return strings.HasPrefix(line, "[") && strings.Contains(line, "]")
+}
+
+func parseTitle(line string) TitleTuple {
+	cut := strings.Index(line, "]")
+	title := line[:cut+1]
+	priority := strings.Count(line[cut+1:], "!")
+	return TitleTuple{title, priority}
 }
